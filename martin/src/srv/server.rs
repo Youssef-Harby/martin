@@ -2,6 +2,7 @@ use std::string::ToString;
 use std::time::Duration;
 
 use actix_cors::Cors;
+use actix_files::Files;
 use actix_web::dev::Server;
 use actix_web::error::ErrorInternalServerError;
 use actix_web::http::header::CACHE_CONTROL;
@@ -121,6 +122,8 @@ pub fn new_server(config: SrvConfig, state: ServerState) -> MartinResult<(Server
 
         #[cfg(feature = "fonts")]
         let app = app.app_data(Data::new(state.fonts.clone()));
+
+        let app = app.service(Files::new("/ui", "./martin-ui/dist").index_file("index.html"));
 
         app.app_data(Data::new(catalog.clone()))
             .wrap(cors_middleware)
