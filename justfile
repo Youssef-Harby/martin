@@ -4,13 +4,18 @@ set shell := ["bash", "-c"]
 
 #export DATABASE_URL="postgres://postgres:postgres@localhost:5411/db"
 
-export PGPORT := "5411"
-export DATABASE_URL := "postgres://postgres:postgres@localhost:" + PGPORT + "/db"
+# Set additional database connection parameters, e.g.   just  PGPARAMS='keepalives=0&keepalives_idle=15'  psql
+PGPARAMS := ""
+PGPORT := "5411"
+
+export DATABASE_URL := "postgres://postgres:postgres@localhost:" + PGPORT + "/db" + (if PGPARAMS != "" { "?" + PGPARAMS } else { "" })
 export CARGO_TERM_COLOR := "always"
 
 #export RUST_LOG := "debug"
 #export RUST_LOG := "sqlx::query=info,trace"
 #export RUST_BACKTRACE := "1"
+
+dockercompose := `if docker-compose --version &> /dev/null; then echo "docker-compose"; else echo "docker compose"; fi`
 
 @_default:
     {{ just_executable() }} --list --unsorted
@@ -38,11 +43,11 @@ debug-page *ARGS: start
 
 # Run PSQL utility against the test database
 psql *ARGS:
-    psql {{ ARGS }} {{ DATABASE_URL }}
+    psql {{ ARGS }} {{ quote(DATABASE_URL) }}
 
 # Run pg_dump utility against the test database
 pg_dump *ARGS:
-    pg_dump {{ ARGS }} {{ DATABASE_URL }}
+    pg_dump {{ ARGS }} {{ quote(DATABASE_URL) }}
 
 # Perform  cargo clean  to delete all build files
 clean: clean-test stop
@@ -68,12 +73,12 @@ start-legacy: (docker-up "db-legacy") docker-is-ready
 # Start a specific test database, e.g. db or db-legacy
 [private]
 docker-up name: start-pmtiles-server
-    docker-compose up -d {{ name }}
+    {{ dockercompose }} up -d {{ name }}
 
 # Wait for the test database to be ready
 [private]
 docker-is-ready:
-    docker-compose run -T --rm db-is-ready
+    {{ dockercompose }} run -T --rm db-is-ready
 
 alias _down := stop
 alias _stop-db := stop
@@ -86,11 +91,11 @@ restart:
 
 # Stop the test database
 stop:
-    docker-compose down --remove-orphans
+    {{ dockercompose }} down --remove-orphans
 
 # Start test server for testing HTTP pmtiles
 start-pmtiles-server:
-    docker-compose up -d fileserver
+    {{ dockercompose }} up -d fileserver
 
 # Run benchmark tests
 bench:
@@ -268,7 +273,7 @@ git *ARGS: start
 
 # Print the connection string for the test database
 print-conn-str:
-    @echo {{ DATABASE_URL }}
+    @echo {{ quote(DATABASE_URL) }}
 
 # Run cargo fmt and cargo clippy
 lint: fmt clippy
